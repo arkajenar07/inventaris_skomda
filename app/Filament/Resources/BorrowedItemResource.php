@@ -26,7 +26,12 @@ class BorrowedItemResource extends Resource
                 Forms\Components\Select::make('user_id')
                     ->relationship('user', 'name')
                     ->label('Penyewa')
-                    ->nullable(),
+                    ->nullable()
+                    ->default(fn () => auth()->user()->hasRole('siswa') ? auth()->id() : null)
+                    ->hidden(fn () => auth()->user()->hasRole('siswa')), // Disable if role is 'siswa'
+                Forms\Components\Hidden::make('user_id')
+                    ->default(fn () => auth()->id())
+                    ->disabled(fn () => auth()->user()->hasRole('super_admin')), // Disable if role is 'siswa'
                 Forms\Components\TextInput::make('description')
                     ->label('Deskripsi')
                     ->required(),
@@ -110,36 +115,55 @@ class BorrowedItemResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('booking_done')
-                        ->label('Booking Done')
+                Tables\Actions\Action::make(name: 'booking_done')
+                        ->label('Return Items')
                         ->action(function (BorrowedItem $record) {
                             foreach ($record->borrowedItemDetails as $detail) {
                                 $detail->item->update(['status' => 'Available']);
                             }
-                            $record->status = 'Completed'; // Set the booking status to Completed
+                            $record->status = 'On Review'; // Set the booking status to Completed
                             $record->save();
                         })
                         ->visible(fn (BorrowedItem $record) =>
                             ($record->status === 'Approved')
                         ),
-                Tables\Actions\Action::make('approve')
-                            ->label('Approve')
-                            ->action(function (BorrowedItem $record) {
-                                $record->status = 'Approved';
-                                $record->save();
-                            })
-                            ->visible(fn (BorrowedItem $record) => $record->status === 'Pending'),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('approve')
+                    ->label('Approve')
+                    ->action(function (BorrowedItem $record) {
+                        $record->status = 'Approved';
+                        $record->save();
+                    })
+                    ->visible(fn (BorrowedItem $record) => $record->status === 'Pending'),
+                    Tables\Actions\Action::make('reject')
+                        ->label('Reject')
+                        ->action(function (BorrowedItem $record) {
+                            $record->status = 'Rejected';
+                            $record->save();
+                        })
+                        ->visible(fn (BorrowedItem $record) => $record->status === 'Pending'),
 
-                        Tables\Actions\Action::make('reject')
-                            ->label('Reject')
+                    ])->visible(fn () => auth()->user()->hasRole('super_admin')),
+
+                    Tables\Actions\ActionGroup::make([
+                        Tables\Actions\Action::make('approve_review')
+                            ->label('Review Approved')
                             ->action(function (BorrowedItem $record) {
-                                $record->status = 'Rejected';
+                                $record->status = 'Completed';
                                 $record->save();
                             })
-                            ->visible(fn (BorrowedItem $record) => $record->status === 'Pending'),
+                            ->visible(fn (BorrowedItem $record) => $record->status === 'On Review'),
+                        Tables\Actions\Action::make('rusak_atau_hilang')
+                            ->label('Items Broken')
+                            ->action(function (BorrowedItem $record) {
+                                $record->status = 'Completed';
+                                $record->save();
+                            })
+                            ->visible(fn (BorrowedItem $record) => $record->status === 'On Review'),
+                    ])->visible(fn () => auth()->user()->hasRole('super_admin')),
                 Tables\Actions\DeleteAction::make()
-                            ->visible(fn (BorrowedItem $record) => $record->status === 'Completed' || $record->status === 'Rejected'),
-            ])
+                ->visible(fn (BorrowedItem $record) => $record->status === 'Completed' || $record->status === 'Rejected'),
+                ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),

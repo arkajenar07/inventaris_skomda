@@ -24,7 +24,6 @@ class DatabaseSeeder extends Seeder
              'name' => 'Admin',
              'email' => 'admin@dibumi.com',
              'password' => Hash::make('password'),
-
          ]);
          $this->command->info('Delay 3 second');
          sleep(3);

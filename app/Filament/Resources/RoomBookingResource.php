@@ -62,15 +62,20 @@
                                 $set('total_price', $totalHarga); // Set calculated price for external bookings
                             }
                         })
-                        ->live(),
+                        ->live()
+                        ->visible(fn () => auth()->user()->hasRole('super_admin')),
 
                     // Form untuk Internal
                     Forms\Components\Select::make('user_id')
                         ->relationship('user', 'name')
                         ->label('Penyewa')
                         ->nullable()
-                        ->hidden(fn ($get) => $get('booking_category') === 'external'),
+                        ->default(fn () => auth()->user()->hasRole('siswa') ? auth()->id() : null)
+                        ->hidden((fn ($get) => $get('booking_category') === 'external') || (fn () => auth()->user()->hasRole('siswa'))),
 
+                    Forms\Components\Hidden::make('user_id')
+                        ->default(fn () => auth()->id())
+                        ->disabled(fn () => auth()->user()->hasRole('super_admin')),
                     // Form Group untuk Eksternal
                     Forms\Components\Fieldset::make('External Customer Details')
                         ->label('Customer Eksternal')
@@ -98,7 +103,8 @@
                                     'Done' => 'Done',
                                 ])
                                 ->disabledOn('create'),
-                        ]),
+                        ])
+                        ->visible(fn () => auth()->user()->hasRole('super_admin')),
 
                     // Form umum untuk room booking
                     Forms\Components\TextInput::make('description')
